@@ -1,0 +1,88 @@
+// Prisma Schema untuk Takar - Kalkulator HPP & Manajemen Resep
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ============================================================
+// Model Lisensi - Kode aktivasi per perangkat
+// ============================================================
+model Lisensi {
+  kode              String    @id
+  aktif             Boolean   @default(true)
+  catatanAdmin      String?   // misal: "Untuk Siti - WA 0812xxx"
+  aktivasiPertama   DateTime? // kapan pertama kali diaktivasi
+  jumlahAktivasi    Int       @default(0)
+  createdAt         DateTime  @default(now())
+}
+
+// ============================================================
+// Model BahanBaku - Database Bahan Baku / Inventory
+// ============================================================
+model BahanBaku {
+  id        String   @id @default(cuid())
+  nama      String
+  kategori  String   // "Kering" | "Basah" | "Kemasan" | "Bumbu"
+  
+  // Data pembelian
+  hargaBeli   Float  // Harga beli total (Rp)
+  jumlahBeli  Float  // Jumlah yang dibeli
+  satuan      String // "gram" | "kg" | "ml" | "liter" | "butir" | "pcs" | "sdm" | "sdt"
+  
+  // Auto-calculated: hargaBeli / jumlahBeli
+  hargaPerSatuan Float // Harga per satuan dasar (Rp/satuan)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relasi ke ResepBahan
+  resepBahan ResepBahan[]
+}
+
+// ============================================================
+// Model Resep - Database Resep
+// ============================================================
+model Resep {
+  id        String   @id @default(cuid())
+  nama      String
+  kategori  String   // "Kue" | "Roti" | "Minuman" | "Makanan" | "Snack" | "Lainnya"
+  deskripsi String?
+  
+  // Yield / Hasil Produksi
+  hasilProduksi Float  // Jumlah yang dihasilkan (misal: 20)
+  satuanHasil   String // "potong" | "pcs" | "botol" | "porsi" | "loyang"
+  
+  // Biaya Overhead (disimpan sebagai JSON string: [{nama, nominal}])
+  overheadItems String @default("[]")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relasi ke ResepBahan
+  bahan ResepBahan[]
+}
+
+// ============================================================
+// Model ResepBahan - Pivot table Resep <-> BahanBaku
+// ============================================================
+model ResepBahan {
+  id          String @id @default(cuid())
+  
+  resepId     String
+  resep       Resep     @relation(fields: [resepId], references: [id], onDelete: Cascade)
+  
+  bahanBakuId String
+  bahanBaku   BahanBaku @relation(fields: [bahanBakuId], references: [id], onDelete: Restrict)
+  
+  jumlahPakai Float  // Jumlah yang dipakai dalam resep ini
+  // satuan mengikuti satuan dari BahanBaku
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([resepId, bahanBakuId])
+}

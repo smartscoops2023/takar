@@ -1,0 +1,17 @@
+{
+  "name": "Takar - Kalkulator HPP",
+  "short_name": "Takar",
+  "description": "Kalkulator HPP & Manajemen Resep untuk UMKM Kuliner",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f7f4",
+  "theme_color": "#f97316",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "256x256",
+      "type": "image/x-icon"
+    }
+  ]
+}
