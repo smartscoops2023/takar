@@ -1,12 +1,8 @@
 /**
  * prisma.ts — Database client
  *
- * Development : SQLite lokal (prisma/dev.db) via better-sqlite3
- * Production  : Turso (LibSQL cloud) via @libsql/client
- *
- * Environment variables yang dibutuhkan di production (Vercel):
- *   TURSO_DATABASE_URL  = libsql://xxxx.turso.io
- *   TURSO_AUTH_TOKEN    = eyJhbGci...
+ * Production  : Turso (LibSQL) — TURSO_DATABASE_URL wajib di-set di Vercel
+ * Development : SQLite lokal via better-sqlite3 (optional dep)
  */
 
 import { PrismaClient } from "@/app/generated/prisma/client";
@@ -16,26 +12,39 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  const isProduction = process.env.NODE_ENV === "production";
-  const tursoUrl     = process.env.TURSO_DATABASE_URL;
-  const tursoToken   = process.env.TURSO_AUTH_TOKEN;
+  const tursoUrl   = process.env.TURSO_DATABASE_URL;
+  const tursoToken = process.env.TURSO_AUTH_TOKEN ?? "";
 
-  if (isProduction && tursoUrl) {
-    // ── PRODUCTION: Turso (LibSQL) ──
+  if (tursoUrl) {
+    // ── PRODUCTION / PREVIEW: Turso ──
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createClient } = require("@libsql/client");
-    const { PrismaLibSql }  = require("@prisma/adapter-libsql");
-
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PrismaLibSql } = require("@prisma/adapter-libsql");
     const libsql  = createClient({ url: tursoUrl, authToken: tursoToken });
     const adapter = new PrismaLibSql(libsql);
     return new PrismaClient({ adapter } as never);
   }
 
   // ── DEVELOPMENT: SQLite lokal ──
-  const path = require("path");
-  const { PrismaBetterSqlite3 } = require("@prisma/adapter-better-sqlite3");
-  const dbPath  = path.resolve(process.cwd(), "prisma/dev.db");
-  const adapter = new PrismaBetterSqlite3({ url: dbPath });
-  return new PrismaClient({ adapter } as never);
+  // better-sqlite3 hanya tersedia di dev (optionalDependencies)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path    = require("path");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Database = require("better-sqlite3");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PrismaBetterSqlite3 } = require("@prisma/adapter-better-sqlite3");
+    const dbPath  = path.resolve(process.cwd(), "prisma/dev.db");
+    const sqlite  = new Database(dbPath);
+    const adapter = new PrismaBetterSqlite3(sqlite);
+    return new PrismaClient({ adapter } as never);
+  } catch {
+    throw new Error(
+      "Database tidak terkonfigurasi. Set TURSO_DATABASE_URL untuk production, " +
+      "atau install better-sqlite3 untuk development."
+    );
+  }
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
