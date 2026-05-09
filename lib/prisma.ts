@@ -23,10 +23,10 @@ function createPrismaClient(): PrismaClient {
   if (isProduction && tursoUrl) {
     // ── PRODUCTION: Turso (LibSQL) ──
     const { createClient } = require("@libsql/client");
-    const { PrismaLibSQL }  = require("@prisma/adapter-libsql");
+    const { PrismaLibSql }  = require("@prisma/adapter-libsql");
 
     const libsql  = createClient({ url: tursoUrl, authToken: tursoToken });
-    const adapter = new PrismaLibSQL(libsql);
+    const adapter = new PrismaLibSql(libsql);
     return new PrismaClient({ adapter } as never);
   }
 

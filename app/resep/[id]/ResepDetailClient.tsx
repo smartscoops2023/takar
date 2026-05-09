@@ -334,7 +334,7 @@ export default function ResepDetailClient() {
         open={editFormOpen}
         onClose={() => setEditFormOpen(false)}
         onSaved={() => { setEditFormOpen(false); load(); }}
-        editData={resep}
+        editData={resep as unknown as import("@/lib/types").Resep}
       />
 
       <TambahBahanResep

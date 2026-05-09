@@ -175,7 +175,7 @@ export default function ResepPageClient() {
           if (id) router.push(`/resep/${id}`);
           else load();
         }}
-        editData={editData}
+        editData={editData as unknown as import("@/lib/types").Resep | null}
       />
 
       <ConfirmDialog
