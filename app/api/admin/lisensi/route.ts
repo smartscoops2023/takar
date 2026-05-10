@@ -1,72 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getDb } from "@/lib/db";
 import { nanoid } from "@/lib/nanoid";
 
-// Middleware: cek admin password dari header
-function checkAdminAuth(req: NextRequest): boolean {
-  const adminPassword = process.env.ADMIN_PASSWORD ?? "takar-admin-2024";
-  const authHeader    = req.headers.get("x-admin-password");
-  return authHeader === adminPassword;
+function checkAuth(req: NextRequest): boolean {
+  const pw = process.env.ADMIN_PASSWORD ?? "takar-admin-2024";
+  return req.headers.get("x-admin-password") === pw;
 }
 
-// GET /api/admin/lisensi — list semua lisensi
+// GET — list semua lisensi
 export async function GET(req: NextRequest) {
-  if (!checkAdminAuth(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!checkAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const db = getDb();
+    const result = await db.execute("SELECT * FROM Lisensi ORDER BY createdAt DESC");
+    return NextResponse.json(result.rows);
+  } catch (err) {
+    console.error("[GET /api/admin/lisensi]", err);
+    return NextResponse.json({ error: "Gagal mengambil data" }, { status: 500 });
   }
-
-  const lisensiList = await prisma.lisensi.findMany({
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json(lisensiList);
 }
 
-// POST /api/admin/lisensi — generate kode baru
+// POST — generate kode baru
 export async function POST(req: NextRequest) {
-  if (!checkAdminAuth(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  if (!checkAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const body = await req.json().catch(() => ({}));
+    const body  = await req.json().catch(() => ({}));
     const catatan = body.catatan ?? null;
-    const jumlah  = Math.min(parseInt(body.jumlah ?? "1"), 50); // max 50 sekaligus
+    const jumlah  = Math.min(parseInt(body.jumlah ?? "1"), 50);
 
-    const kodeList: string[] = [];
+    const db = getDb();
+    const created: string[] = [];
+
     for (let i = 0; i < jumlah; i++) {
-      // Format: TAKAR-XXXX-XXXX (huruf besar + angka)
-      const part1 = nanoid(4).toUpperCase();
-      const part2 = nanoid(4).toUpperCase();
-      kodeList.push(`TAKAR-${part1}-${part2}`);
+      const kode = `TAKAR-${nanoid(4).toUpperCase()}-${nanoid(4).toUpperCase()}`;
+      await db.execute({
+        sql: "INSERT INTO Lisensi (kode, catatanAdmin) VALUES (?, ?)",
+        args: [kode, catatan],
+      });
+      created.push(kode);
     }
 
-    const created = await Promise.all(
-      kodeList.map((kode) =>
-        prisma.lisensi.create({
-          data: { kode, catatanAdmin: catatan },
-        })
-      )
-    );
-
-    return NextResponse.json({ created: created.map((l) => l.kode) }, { status: 201 });
+    return NextResponse.json({ created }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/admin/lisensi]", err);
     return NextResponse.json({ error: "Gagal membuat lisensi" }, { status: 500 });
   }
 }
 
-// PATCH /api/admin/lisensi — nonaktifkan/aktifkan kode
+// PATCH — toggle aktif/nonaktif
 export async function PATCH(req: NextRequest) {
-  if (!checkAdminAuth(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!checkAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const { kode, aktif } = await req.json();
+    const db = getDb();
+    await db.execute({
+      sql: "UPDATE Lisensi SET aktif = ? WHERE kode = ?",
+      args: [aktif ? 1 : 0, kode],
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[PATCH /api/admin/lisensi]", err);
+    return NextResponse.json({ error: "Gagal update" }, { status: 500 });
   }
-
-  const { kode, aktif } = await req.json();
-  const updated = await prisma.lisensi.update({
-    where: { kode },
-    data: { aktif },
-  });
-
-  return NextResponse.json(updated);
 }
